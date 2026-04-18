@@ -382,12 +382,13 @@ class Module(orchestrator.OrchestratorClientMixin, MgrModule):
         return self._apply_res([share], create_only=True).one()
 
     @SMBCLICommand('share rm', perm='rw')
-    def share_rm(self, cluster_id: str, share_id: str) -> results.Result:
-        """Remove an smb share"""
-        share = resources.RemovedShare(
-            cluster_id=cluster_id, share_id=share_id
-        )
-        return self._apply_res([share]).one()
+    def share_rm(self, cluster_id: str, share_ids: list[str]) -> results.Result:
+        """Remove one or more smb share"""
+        shares = [
+            resources.RemovedShare(cluster_id=cluster_id, share_ids=share_ids)
+        ]
+        log.info('Removing shares %r', share_ids)
+        return self._apply_res([shares]).one()
 
     @SMBCLICommand('share update cephfs qos', perm='rw')
     def share_update_qos(
