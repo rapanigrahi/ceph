@@ -249,6 +249,39 @@ class InvalidResourceResult(BaseResult):
         return ds
 
 
+class SubvolumeResolutionErrorResult(InvalidResourceResult):
+    """Result for CephFS subvolume resolution failure when the full Share
+    object cannot be retrieved from the store.
+    """
+
+    def __init__(
+        self,
+        msg: str,
+        cluster_id: str = '',
+        share_id: str = '',
+        subvolume_id: str = '',
+        cephfs_volume: str = '',
+        cephfs_subvolumegroup: str = '',
+    ) -> None:
+        cephfs_data: Dict[str, str] = {}
+        if cephfs_volume:
+            cephfs_data['volume'] = cephfs_volume
+        if cephfs_subvolumegroup:
+            cephfs_data['subvolumegroup'] = cephfs_subvolumegroup
+        if subvolume_id:
+            cephfs_data['subvolume'] = subvolume_id
+
+        resource_data: Simplified = {
+            'resource_type': 'ceph.smb.share',
+            'cluster_id': cluster_id,
+            'share_id': share_id,
+        }
+        if cephfs_data:
+            resource_data['cephfs'] = cephfs_data
+
+        super().__init__(resource_data, msg=msg)
+
+
 class ResultGroup:
     """Result of applying multiple smb resource updates to the system."""
 
@@ -284,11 +317,17 @@ class ResultGroup:
             else:
                 others.append(result)
         if match:
-            match.success = self.success
-            match.status = {} if match.status is None else match.status
-            match.status['additional_results'] = [
-                r.to_simplified() for r in others
-            ]
+            # The target's own outcome decides its success. Failures of other
+            # resources (e.g. a share with a now-missing subvolume that gets
+            # re-synced) are reported in additional_results only.
+            if others:
+                match.status = {} if match.status is None else match.status
+                match.status['additional_results'] = [
+                    r.to_simplified() for r in others
+                ]
+            else:
+                match.status = {} if match.status is None else match.status
+                match.status.pop('additional_results', None)
             return match
         raise ValueError('no matching result for resource found')
 
